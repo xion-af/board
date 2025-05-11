@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>to 정인🩷</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .h-screen {
+            height: 100vh;
+            /* 기본적으로 100vh 사용 */
+            height: 100dvh !important;
+            /* dvh 지원 브라우저에서는 dvh 사용 */
+            /* touch-action: manipulation; */
+        }
+
+        /* 스피너 스타일 */
+        .spinner {
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top: 2px solid white;
+            border-radius: 50%;
+            width: 16px;
+            height: 16px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            vertical-align: middle;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+
+<body class="flex items-center justify-center min-h-screen bg-gray-100 h-screen">
+    <div class="w-full max-w-md p-8 space-y-2 bg-white rounded-lg shadow-md">
+        <h2 class="text-2xl font-bold text-center text-gray-700">to 정인🩷</h2>
+
+        <!-- 이미지 공간 -->
+        <div class="flex justify-center">
+            <img src="1.jpeg" alt="첨부 이미지" class="w-full bg-gray-200 rounded-md object-cover">
+        </div>
+
+        <form id="suggestionForm">
+            <div class="space-y-4">
+                <div>
+                    <textarea id="suggestion" rows="4" maxlength="200"
+                        class="w-full px-4 py-2 mt-1 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="메시지를 입력하세요 (최대 200자)" required></textarea>
+                </div>
+            </div>
+
+            <div class="flex items-center justify-between mt-2">
+                <button type="submit"
+                    class="submit-button w-full px-4 py-2 font-medium text-white bg-blue-500 rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 relative">
+                    <span class="button-text">제출하기</span>
+                    <span class="spinner hidden"></span> <!-- 로딩 스피너 -->
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <script type="module">
+        console.log("스크립트 시작");
+
+        // Firebase SDK를 모듈로 import
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
+        import { getFirestore, collection, addDoc, query, where, orderBy, limit, getDocs, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
+        console.log("Firebase 모듈 임포트 완료");
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyBeIPr1H_de7eIZUagNAUvPbw-rYRteP9U",
+            authDomain: "submit-33eb1.firebaseapp.com",
+            projectId: "submit-33eb1",
+            storageBucket: "submit-33eb1.appspot.com",
+            messagingSenderId: "123176179541",
+            appId: "1:123176179541:web:c40f2392c8b95fb93601dc"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        console.log("Firebase 초기화 완료");
+
+        async function getUserIdentifier() {
+            console.log("getUserIdentifier 함수 호출");
+            try {
+                const auth = getAuth();
+                const userCredential = await signInAnonymously(auth);
+                const uid = userCredential.user.uid;
+                console.log("사용자 uid:", uid);
+                return uid;
+            } catch (error) {
+                console.error("사용자 식별자 가져오기 오류:", error);
+                return "unknown";
+            }
+        }
+
+        async function getLastSubmission(userIdentifier) {
+            console.log("getLastSubmission 함수 호출", userIdentifier);
+            try {
+                const q = query(
+                    collection(db, 'suggestions2'),
+                    where('userIdentifier', '==', userIdentifier),
+                    orderBy('timestamp', 'desc'),
+                    limit(1)
+                );
+                const querySnapshot = await getDocs(q);
+                if (!querySnapshot.empty) {
+                    console.log("마지막 제출 시간 찾음");
+                    const lastSubmissionData = querySnapshot.docs[0].data();
+                    const lastSubmissionTimestamp = lastSubmissionData.timestamp.toDate();
+                    return lastSubmissionTimestamp;
+                }
+                console.log("이전 제출 없음");
+                return null;
+            } catch (error) {
+                console.error("마지막 제출 시간 확인 오류:", error);
+                return null;
+            }
+        }
+
+        // 폼 제출 이벤트 리스너 수정
+        document.getElementById('suggestionForm').addEventListener('submit', async (e) => {
+            console.log("폼 제출 이벤트 발생");
+            e.preventDefault();
+
+            const submitButton = e.target.querySelector('button[type="submit"]');
+            const spinner = submitButton.querySelector('.spinner');
+            const buttonText = submitButton.querySelector('.button-text');
+
+            submitButton.disabled = true;  // 제출 버튼 비활성화
+            spinner.classList.remove('hidden');  // 스피너 표시
+            buttonText.classList.add('hidden');  // 텍스트 숨기기
+
+            const suggestion = document.getElementById('suggestion').value;
+
+            try {
+                const userIdentifier = await getUserIdentifier();
+                console.log("사용자 식별자:", userIdentifier);
+
+                const lastSubmission = await getLastSubmission(userIdentifier);
+                const now = new Date();
+
+                if (lastSubmission && (now - lastSubmission) < (5 * 60 * 1000)) {
+                    console.log("5분 내 재제출 시도");
+                    alert('5분 내 중복제출 불가');
+                    submitButton.disabled = false;  // 제출 버튼 다시 활성화
+                    spinner.classList.add('hidden');  // 스피너 숨기기
+                    buttonText.classList.remove('hidden');  // 텍스트 복구
+                    return;
+                }
+
+                console.log("Firestore에 저장 시도:", {
+                    content: suggestion,
+                    timestamp: serverTimestamp(),
+                    userIdentifier: userIdentifier
+                });
+
+                const docRef = await addDoc(collection(db, 'suggestions2'), {
+                    content: suggestion,
+                    timestamp: serverTimestamp(),
+                    userIdentifier: userIdentifier
+                });
+
+                console.log("문서 저장 완료. 문서 ID:", docRef.id);
+                alert('성공적으로 제출되었습니다.');
+                document.getElementById('suggestion').value = '';
+            } catch (error) {
+                console.error("오류 발생:", error);
+                alert('오류가 발생했습니다. 나중에 다시 시도해주세요.');
+            } finally {
+                submitButton.disabled = false;  // 제출 버튼 다시 활성화
+                spinner.classList.add('hidden');  // 스피너 숨기기
+                buttonText.classList.remove('hidden');  // 텍스트 복구
+            }
+        });
+
+        console.log("스크립트 로딩 완료");
+    </script>
+</body>
+
+</html>

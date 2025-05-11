@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>확인 페이지</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #f0f4f8;
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+        }
+
+        .suggestion-container {
+            width: 600px;
+            height: 460px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            background-color: #ffffff;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            position: relative;
+        }
+
+        .suggestion-index {
+            font-size: 1.5rem;
+            /* 수정된 부분 */
+            color: #555555;
+            position: absolute;
+            top: 1rem;
+            width: 100%;
+            text-align: center;
+        }
+
+        .suggestion-content {
+            font-size: 2rem;
+            /* 기본 폰트 크기 */
+            color: #333333;
+            margin-bottom: 1.5rem;
+            max-height: calc(100% - 6rem);
+            /* 컨텐츠 영역 최대 높이 설정 */
+            overflow: hidden;
+            /* 스크롤바 제거 */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .suggestion-timestamp {
+            font-size: 0.875rem;
+            color: #888888;
+            position: absolute;
+            bottom: 1rem;
+            width: 100%;
+            text-align: center;
+        }
+
+        .button-container {
+            position: absolute;
+            bottom: 3rem;
+            /* 버튼과 타임스탬프 간격 조절 */
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            padding: 0 1rem;
+        }
+
+        .next-button,
+        .prev-button {
+            background-color: #007bff;
+            color: #ffffff;
+            padding: 0.75rem 1.5rem;
+            border-radius: 5px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        .next-button:hover,
+        .prev-button:hover {
+            background-color: #0056b3;
+        }
+
+        .next-button:disabled,
+        .prev-button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="suggestion-container">
+        <div id="suggestionIndex" class="suggestion-index"></div>
+        <div id="suggestionContent" class="suggestion-content mx-5"></div>
+        <div id="suggestionTimestamp" class="suggestion-timestamp"></div>
+        <div class="button-container">
+            <button id="prevButton" class="prev-button" disabled>이전</button>
+            <button id="nextButton" class="next-button">다음</button>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
+        import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyBeIPr1H_de7eIZUagNAUvPbw-rYRteP9U",
+            authDomain: "submit-33eb1.firebaseapp.com",
+            projectId: "submit-33eb1",
+            storageBucket: "submit-33eb1.appspot.com",
+            messagingSenderId: "123176179541",
+            appId: "1:123176179541:web:c40f2392c8b95fb93601dc"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth();
+
+        signInAnonymously(auth).then(() => {
+            console.log("익명 사용자로 로그인 성공");
+
+            const suggestionIndex = document.getElementById('suggestionIndex');
+            const suggestionContent = document.getElementById('suggestionContent');
+            const suggestionTimestamp = document.getElementById('suggestionTimestamp');
+            const nextButton = document.getElementById('nextButton');
+            const prevButton = document.getElementById('prevButton');
+
+            async function loadSuggestions() {
+                try {
+                    const querySnapshot = await getDocs(collection(db, 'suggestions2'));
+                    const suggestionsArray = [];
+
+                    querySnapshot.forEach((doc) => {
+                        const suggestionData = doc.data();
+                        suggestionsArray.push({
+                            content: suggestionData.content,
+                            timestamp: suggestionData.timestamp.toDate()
+                        });
+                    });
+
+                    suggestionsArray.sort((a, b) => a.timestamp - b.timestamp);
+
+                    suggestionsArray.forEach(suggestion => {
+                        suggestion.timestamp = formatTimestamp(suggestion.timestamp);
+                    });
+
+                    let currentIndex = 0;
+                    const totalSuggestions = suggestionsArray.length;
+
+                    function showSuggestion(index) {
+                        if (index < totalSuggestions) {
+                            suggestionIndex.textContent = `${index + 1}/${totalSuggestions}`;
+                            suggestionContent.textContent = suggestionsArray[index].content;
+                            suggestionTimestamp.textContent = `제출 시간: ${suggestionsArray[index].timestamp}`;
+
+                            // 컨텐츠 길이에 따라 폰트 크기 조정
+                            if (suggestionsArray[index].content.length > 120) {
+                                suggestionContent.style.fontSize = '1.5rem';
+                            } else {
+                                suggestionContent.style.fontSize = '2rem';
+                            }
+                        }
+
+                        prevButton.disabled = index === 0;
+                        nextButton.disabled = index === totalSuggestions - 1;
+                    }
+
+                    showSuggestion(currentIndex);
+
+                    nextButton.addEventListener('click', () => {
+                        currentIndex++;
+                        showSuggestion(currentIndex);
+                    });
+
+                    prevButton.addEventListener('click', () => {
+                        currentIndex--;
+                        showSuggestion(currentIndex);
+                    });
+
+                } catch (error) {
+                    console.error("목록을 가져오는 중 오류 발생:", error);
+                    suggestionContent.textContent = "목록을 가져오는 중 오류가 발생했습니다. 나중에 다시 시도해주세요.";
+                    suggestionTimestamp.textContent = "";
+                    nextButton.classList.add('hidden');
+                    prevButton.classList.add('hidden');
+                }
+            }
+
+            loadSuggestions();
+        }).catch((error) => {
+            console.error("익명 사용자로 로그인 중 오류 발생:", error);
+        });
+
+        function formatTimestamp(date) {
+            let year = date.getFullYear().toString();
+            let month = String(date.getMonth() + 1).padStart(2, '0');
+            let day = String(date.getDate()).padStart(2, '0');
+            let hours = String(date.getHours()).padStart(2, '0');
+            let minutes = String(date.getMinutes()).padStart(2, '0');
+            let seconds = String(date.getSeconds()).padStart(2, '0');
+
+            return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+        }
+    </script>
+</body>
+
+</html>
